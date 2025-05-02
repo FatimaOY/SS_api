@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model devices {
+  device_id        String             @id @db.VarChar(50)
+  user_id          Int
+  status_id        Int?
+  last_seen        DateTime?          @db.DateTime(0)
+  users            users              @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "devices_ibfk_1")
+  devicestatus     devicestatus?      @relation(fields: [status_id], references: [status_id], onDelete: NoAction, onUpdate: NoAction, map: "devices_ibfk_2")
+  emergency_alerts emergency_alerts[]
+  gps_locations    gps_locations[]
+
+  @@index([status_id], map: "status_id")
+  @@index([user_id], map: "user_id")
+}
+
+model devicestatus {
+  status_id Int       @id
+  type      String    @db.VarChar(255)
+  devices   devices[]
+}
+
+model emergency_alerts {
+  alert_id  Int       @id @default(autoincrement())
+  user_id   Int
+  device_id String    @db.VarChar(50)
+  timestamp DateTime? @default(now()) @db.DateTime(0)
+  handled   Boolean?  @default(false)
+  users     users     @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "emergency_alerts_ibfk_1")
+  devices   devices   @relation(fields: [device_id], references: [device_id], onDelete: NoAction, onUpdate: NoAction, map: "emergency_alerts_ibfk_2")
+
+  @@index([device_id], map: "device_id")
+  @@index([user_id], map: "user_id")
+}
+
+model gps_locations {
+  location_id Int       @id @default(autoincrement())
+  device_id   String    @db.VarChar(255)
+  latitude    Decimal   @db.Decimal(9, 6)
+  longitude   Decimal   @db.Decimal(9, 6)
+  accuracy    Decimal?  @db.Decimal(5, 2)
+  timestamp   DateTime? @default(now()) @db.DateTime(0)
+  devices     devices   @relation(fields: [device_id], references: [device_id], onDelete: NoAction, onUpdate: NoAction, map: "gps_locations_ibfk_1")
+
+  @@index([device_id], map: "device_id")
+}
+
+model roles {
+  role_id Int     @id
+  type    String  @db.VarChar(255)
+  users   users[]
+}
+
+model userlinks {
+  link_id                             Int   @id @default(autoincrement())
+  patient_id                          Int
+  caregiver_id                        Int
+  users_userlinks_patient_idTousers   users @relation("userlinks_patient_idTousers", fields: [patient_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "userlinks_ibfk_1")
+  users_userlinks_caregiver_idTousers users @relation("userlinks_caregiver_idTousers", fields: [caregiver_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "userlinks_ibfk_2")
+
+  @@index([caregiver_id], map: "caregiver_id")
+  @@index([patient_id], map: "patient_id")
+}
+
+model users {
+  user_id                                 Int                  @id @default(autoincrement())
+  FirstName                               String               @db.VarChar(255)
+  LastName                                String               @db.VarChar(255)
+  email                                   String               @unique(map: "email") @db.VarChar(255)
+  password                                String               @db.VarChar(255)
+  role_id                                 Int
+  device_id                               String?              @db.VarChar(50)
+  fcm_token                               String?              @db.VarChar(255)
+  devices                                 devices[]
+  emergency_alerts                        emergency_alerts[]
+  userlinks_userlinks_patient_idTousers   userlinks[]          @relation("userlinks_patient_idTousers")
+  userlinks_userlinks_caregiver_idTousers userlinks[]          @relation("userlinks_caregiver_idTousers")
+  roles                                   roles                @relation(fields: [role_id], references: [role_id], onDelete: NoAction, onUpdate: NoAction, map: "users_ibfk_1")
+  voiceassistantlogs                      voiceassistantlogs[]
+
+  @@index([role_id], map: "role_id")
+}
+
+model voiceassistantlogs {
+  log_id    Int       @id @default(autoincrement())
+  user_id   Int
+  message   String    @db.Text
+  response  String    @db.Text
+  timestamp DateTime? @default(now()) @db.DateTime(0)
+  users     users     @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "voiceassistantlogs_ibfk_1")
+
+  @@index([user_id], map: "user_id")
+}
