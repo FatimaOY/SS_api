@@ -2,13 +2,14 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
+const path = require('path');
 require('dotenv').config();
 
-const app = express();
-app.use(bodyParser.json());
+const router = express.Router();
+router.use(bodyParser.json());
 
 // Initialize Firebase
-const serviceAccount = require('./firebase-service-account.json');
+const serviceAccount = require(path.join(__dirname, '..', 'firebase-service-account.json'));
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -24,7 +25,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Endpoint for ESP32 to trigger alert
-app.post('/alert', async (req, res) => {
+router.post('/alert', async (req, res) => {
   const { message = "Emergency button pressed!" } = req.body;
 
   try {
@@ -56,6 +57,4 @@ app.post('/alert', async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT, () =>
-  console.log(`Server running on port ${process.env.PORT}`)
-);
+module.exports = router;
