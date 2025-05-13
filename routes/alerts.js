@@ -77,12 +77,16 @@ router.post('/', async (req, res) => {
       }
     });
 
-    // Send email notification
+    // Safe access to user email and name
+    const userEmail = alert.users?.email || 'admin@example.com';
+    const userName = `${alert.users?.FirstName || 'Unknown'} ${alert.users?.LastName || ''}`;
+    const locationUrl = (lat && lng) ? `\nLocation: https://maps.google.com/?q=${lat},${lng}` : '';
+
     await transporter.sendMail({
       from: 'alert@yourdomain.com',
-      to: alert.users.email || 'admin@example.com',
+      to: userEmail,
       subject: '🚨 Emergency Alert Triggered',
-      text: `User ${alert.users.FirstName} ${alert.users.LastName} triggered an emergency on device ${device_id} at ${alert.created_at?.toISOString()}`
+      text: `User ${userName} triggered an emergency on device ${device_id} at ${alert.created_at?.toISOString()}${locationUrl}`
     });
 
     res.status(201).json({
@@ -90,26 +94,12 @@ router.post('/', async (req, res) => {
       alert
     });
   } catch (err) {
-    console.error("Error creating alert:", err);
-    res.status(500).json({ error: 'Failed to create alert' });
-  }
-});
-
-// GET /alerts — retrieve emergency alert history
-router.get('/', async (req, res) => {
-  try {
-    const alerts = await prisma.emergency_alerts.findMany({
-      orderBy: { timestamp: 'desc' },
-      include: {
-        users: true,
-        devices: true
-      }
+    console.error("❌ Error creating alert:", err);
+    res.status(500).json({
+      error: 'Failed to create alert',
+      message: err.message,
+      stack: err.stack
     });
-
-    res.status(200).json({ alerts });
-  } catch (err) {
-    console.error("🔥 Error fetching alerts:", err);
-    res.status(500).json({ error: 'Failed to retrieve alerts' });
   }
 });
 

@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
+const cookieParser = require('cookie-parser');
+const path = require('path');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -15,7 +17,7 @@ const alertRoutes = require('./routes/alerts');
 const userRoutes = require('./routes/users');
 const caregiverRoutes = require('./routes/caregivers');
 const patientRoutes = require('./routes/patients');
-const eventRoutes = require('./routes/events');
+// const eventRoutes = require('./routes/events');
 const medicalRoutes = require('./routes/medical');
 
 // Use routes
@@ -24,7 +26,7 @@ app.use('/api/alerts', alertRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/caregivers', caregiverRoutes);
 app.use('/api/patients', patientRoutes);
-app.use('/api/events', eventRoutes);
+// app.use('/api/events', eventRoutes);
 app.use('/api/medical', medicalRoutes);
 
 // Error handling middleware
@@ -45,11 +47,8 @@ app.listen(PORT, () => {
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/alerts', alertsRouter);
-
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
-
-
+// app.use('/alerts', alertsRouter);
+// app.use('/', indexRouter);
+// app.use('/users', usersRouter);
 
 module.exports = app;
