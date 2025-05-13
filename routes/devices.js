@@ -60,6 +60,28 @@ router.get('/mac/:mac',auth, async (req, res) => {
   }
 });
 
+router.get('/by-mac/:mac', async (req, res) => {
+  try {
+    const device = await prisma.devices.findUnique({
+      where: { mac: req.params.mac },
+      select: {
+        id: true,
+        user_id: true
+      }
+    });
+
+    if (!device) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    res.json({ device_id: device.id, user_id: device.user_id });
+  } catch (error) {
+    console.error("Error fetching device by MAC:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // Create a new device
 router.post('/', auth,
   [
@@ -139,5 +161,30 @@ router.delete('/:id', auth, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+router.post('/register', async (req, res) => {
+  try {
+    const device = await prisma.devices.findUnique({
+      where: { mac: '00:11:22:33:44:55' },
+      select: { id: true, user_id: true }
+    });
+
+    if (!device) {
+      return res.status(404).json({ error: 'Device with known MAC not found' });
+    }
+
+    res.status(200).json({
+      message: '✅ Using fixed MAC device',
+      device_id: device.id,
+      user_id: device.user_id
+    });
+  } catch (error) {
+    console.error("Error returning default device:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
 
 module.exports = router; 

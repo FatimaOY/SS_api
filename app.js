@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
+const cookieParser = require('cookie-parser');
+const path = require('path');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -15,7 +17,7 @@ const alertRoutes = require('./routes/alerts');
 const userRoutes = require('./routes/users');
 const caregiverRoutes = require('./routes/caregivers');
 const patientRoutes = require('./routes/patients');
-const eventRoutes = require('./routes/events');
+// const eventRoutes = require('./routes/events');
 const medicalRoutes = require('./routes/medical');
 const subscriptionRoutes = require('./routes/subscriptions');
 const gpsRoutes = require('./routes/gps');
@@ -31,7 +33,7 @@ app.use('/api/alerts', alertRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/caregivers', caregiverRoutes);
 app.use('/api/patients', patientRoutes);
-app.use('/api/events', eventRoutes);
+// app.use('/api/events', eventRoutes);
 app.use('/api/medical', medicalRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api', gpsRoutes);

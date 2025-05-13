@@ -38,6 +38,7 @@ model users {
   emergency_phone    String?              @db.VarChar(50)
   medical_info       String?              @db.Text
   voiceassistantlogs voiceassistantlogs[]
+  alerts     alerts[] // 👈 Add this line
 }
 
 model alerts {
@@ -47,10 +48,16 @@ model alerts {
   lng        Decimal?  @db.Decimal(9, 6)
   created_at DateTime? @default(now()) @db.DateTime(0)
   device_id  Int
+  user_id    Int
+  handled    Boolean   @default(false)
+
   devices    devices   @relation(fields: [device_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "alerts_ibfk_1")
+  users      users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "alerts_ibfk_2")
 
   @@index([device_id], map: "device_id")
+  @@index([user_id], map: "user_id")
 }
+
 
 model caregiverpatientlinks {
   link_id      Int        @id @default(autoincrement())

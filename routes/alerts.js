@@ -94,7 +94,20 @@ router.post('/', auth,
       }
     });
 
-    // 2. Find all caregivers for this user (assuming patient-caregiver links)
+    
+    // Safe access to user email and name
+    const userEmail = alert.users?.email || 'admin@example.com';
+    const userName = `${alert.users?.FirstName || 'Unknown'} ${alert.users?.LastName || ''}`;
+    const locationUrl = (lat && lng) ? `\nLocation: https://maps.google.com/?q=${lat},${lng}` : '';
+
+    await transporter.sendMail({
+      from: 'alert@yourdomain.com',
+      to: userEmail,
+      subject: '🚨 Emergency Alert Triggered',
+      text: `User ${userName} triggered an emergency on device ${device_id} at ${alert.created_at?.toISOString()}${locationUrl}`
+    });
+
+    //  Find all caregivers for this user (assuming patient-caregiver links)
     const patient = await prisma.patients.findFirst({
       where: { user_id: parseInt(user_id) },
       include: {
@@ -140,12 +153,14 @@ router.post('/', auth,
       alert
     });
   } catch (err) {
-    console.error("Error creating alert:", err);
-    res.status(500).json({ error: 'Failed to create alert' });
+    console.error("❌ Error creating alert:", err);
+    res.status(500).json({
+      error: 'Failed to create alert',
+      message: err.message,
+      stack: err.stack
+    });
   }
 });
-
-
 
 // Delete an alert
 router.delete('/:id',auth, async (req, res) => {
