@@ -8,25 +8,36 @@ datasource db {
 }
 
 model devices {
-  id      Int      @id @default(autoincrement())
-  mac     String   @unique(map: "mac") @db.VarChar(100)
-  name    String?  @default("Unnamed Device") @db.VarChar(100)
-  user_id Int
-  alerts  alerts[]
-  users   users    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "devices_ibfk_1")
+  id            Int             @id @default(autoincrement())
+  mac           String          @unique(map: "mac") @db.VarChar(100)
+  name          String?         @default("Unnamed Device") @db.VarChar(100)
+  user_id       Int
+  alerts        alerts[]
+  users         users           @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "devices_ibfk_1")
+  gps_locations gps_locations[]
 
   @@index([user_id], map: "user_id")
 }
 
 model users {
-  id         Int          @id @default(autoincrement())
-  email      String       @unique(map: "email") @db.VarChar(255)
-  password   String       @db.VarChar(255)
-  fcm_token  String?      @db.VarChar(255)
-  caregivers caregivers[]
-  devices    devices[]
-  events     events[]
-  patients   patients[]
+  id            Int             @id @default(autoincrement())
+  email         String          @unique(map: "email") @db.VarChar(255)
+  password      String          @db.VarChar(255)
+  fcm_token     String?         @db.VarChar(255)
+  caregivers    caregivers[]
+  devices       devices[]
+  events        events[]
+  patients      patients[]
+  subscriptions subscriptions[]
+
+  first_name         String?              @db.VarChar(100)
+  last_name          String?              @db.VarChar(100)
+  address            String?              @db.VarChar(255)
+  phone              String?              @db.VarChar(50)
+  emergency_name     String?              @db.VarChar(100)
+  emergency_phone    String?              @db.VarChar(50)
+  medical_info       String?              @db.Text
+  voiceassistantlogs voiceassistantlogs[]
 }
 
 model alerts {
@@ -93,4 +104,40 @@ model patients {
   users                 users                   @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "patients_ibfk_1")
 
   @@index([user_id], map: "user_id")
+}
+
+model subscriptions {
+  id           Int      @id @default(autoincrement())
+  user_id      Int
+  plan         String   @db.VarChar(100)
+  status       String   @db.VarChar(50)
+  renewal_date DateTime
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  users        users    @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+}
+
+model gps_locations {
+  id        Int      @id @default(autoincrement())
+  device_id Int
+  latitude  Decimal  @db.Decimal(9, 6)
+  longitude Decimal  @db.Decimal(9, 6)
+  accuracy  Float?
+  timestamp DateTime @default(now())
+  devices   devices  @relation(fields: [device_id], references: [id])
+
+  @@index([device_id])
+}
+
+model voiceassistantlogs {
+  id        Int      @id @default(autoincrement())
+  user_id   Int
+  message   String   @db.Text
+  response  String?  @db.Text
+  timestamp DateTime @default(now())
+  users     users    @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
 }

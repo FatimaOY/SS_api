@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-
+const { body, validationResult } = require('express-validator');
+const auth = require('../middleware/auth');
 // Get all devices
-router.get('/', async (req, res) => {
+router.get('/',auth, async (req, res) => {
   try {
     const devices = await prisma.devices.findMany({
       include: {
@@ -20,7 +21,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get device by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id',auth, async (req, res) => {
   try {
     const device = await prisma.devices.findUnique({
       where: { id: parseInt(req.params.id) },
@@ -40,7 +41,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Get device by MAC address
-router.get('/mac/:mac', async (req, res) => {
+router.get('/mac/:mac',auth, async (req, res) => {
   try {
     const device = await prisma.devices.findUnique({
       where: { mac: req.params.mac },
@@ -60,33 +61,36 @@ router.get('/mac/:mac', async (req, res) => {
 });
 
 // Create a new device
-router.post('/', async (req, res) => {
-  const { mac, name, user_id } = req.body;
+router.post('/', auth,
+  [
+    body('mac').isString().withMessage('MAC address is required'),
+    body('user_id').optional().isInt().withMessage('User ID must be an integer'),
+    body('name').optional().isString()
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  if (!mac) {
-    return res.status(400).json({ error: 'MAC address is required' });
+    const { mac, name, user_id } = req.body;
+    try {
+      const device = await prisma.devices.create({
+        data: {
+          mac,
+          name: name || null,
+          user_id: user_id ? parseInt(user_id) : null
+        },
+        include: { users: true }
+      });
+      res.status(201).json(device);
+    } catch (error) {
+      console.error("Error creating device:", error);
+      res.status(500).json({ error: error.message });
+    }
   }
-
-  try {
-    const device = await prisma.devices.create({
-      data: {
-        mac,
-        name: name || null,
-        user_id: user_id ? parseInt(user_id) : null
-      },
-      include: {
-        users: true
-      }
-    });
-    res.status(201).json(device);
-  } catch (error) {
-    console.error("Error creating device:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
+);
 
 // Update a device
-router.put('/:id', async (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   const { name, user_id } = req.body;
 
   try {
@@ -108,7 +112,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Get device's alerts
-router.get('/:id/alerts', async (req, res) => {
+router.get('/:id/alerts',auth, async (req, res) => {
   try {
     const alerts = await prisma.alerts.findMany({
       where: { device_id: parseInt(req.params.id) },
@@ -124,7 +128,7 @@ router.get('/:id/alerts', async (req, res) => {
 });
 
 // Delete a device
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
   try {
     await prisma.devices.delete({
       where: { id: parseInt(req.params.id) }

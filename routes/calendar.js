@@ -4,9 +4,9 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { body, validationResult } = require('express-validator');
 const admin = require('firebase-admin');
-
+const auth = require('../middleware/auth');
 // Get all events
-router.get('/', async (req, res) => {
+router.get('/',auth, async (req, res) => {
   try {
     const events = await prisma.events.findMany({
       include: {
@@ -21,7 +21,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get events for a specific user
-router.get('/user/:userId', async (req, res) => {
+router.get('/user/:userId',auth, async (req, res) => {
   try {
     const events = await prisma.events.findMany({
       where: { user_id: parseInt(req.params.userId) },
@@ -37,7 +37,7 @@ router.get('/user/:userId', async (req, res) => {
 });
 
 // Create a new event
-router.post('/', async (req, res) => {
+router.post('/',auth, async (req, res) => {
   const { user_id, title, description, start_time, end_time, type } = req.body;
 
   if (!user_id || !title) {
@@ -66,7 +66,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update an event
-router.put('/:eventId', async (req, res) => {
+router.put('/:eventId',auth, async (req, res) => {
   const { title, description, start_time, end_time, type } = req.body;
 
   try {
@@ -91,7 +91,7 @@ router.put('/:eventId', async (req, res) => {
 });
 
 // Delete an event
-router.delete('/:eventId', async (req, res) => {
+router.delete('/:eventId',auth, async (req, res) => {
   try {
     await prisma.events.delete({
       where: { event_id: parseInt(req.params.eventId) }

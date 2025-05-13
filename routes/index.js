@@ -24,37 +24,5 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Endpoint for ESP32 to trigger alert
-router.post('/alert', async (req, res) => {
-  const { message = "Emergency button pressed!" } = req.body;
-
-  try {
-    // 1. Send push notification
-    await admin.messaging().send({
-      notification: {
-        title: '🚨 Emergency Alert',
-        body: message,
-      },
-      topic: process.env.FCM_TOPIC,
-    });
-
-    console.log("Push sent");
-
-    // 2. Send email alert
-    await transporter.sendMail({
-      from: `"ElderCare System" <${process.env.EMAIL_USER}>`,
-      to: "caregiver@example.com",  // replace or use env
-      subject: "🚨 Emergency Alert",
-      text: message,
-    });
-
-    console.log("Email sent");
-
-    res.status(200).send({ success: true });
-  } catch (error) {
-    console.error("Error sending alert:", error);
-    res.status(500).send({ success: false, error: error.message });
-  }
-});
 
 module.exports = router;
