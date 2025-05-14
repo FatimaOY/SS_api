@@ -6,7 +6,6 @@ const prisma = new PrismaClient();
 const admin = require('firebase-admin');
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
-
 const transporter = nodemailer.createTransport({
   service: 'Gmail',
   auth: {
@@ -21,7 +20,7 @@ router.get('/', auth, async (req, res) => {
     const alerts = await prisma.alerts.findMany({
       include: {
         devices: true,
-        users: true
+        // users: true
       },
       orderBy: {
         created_at: 'desc'

@@ -54,6 +54,8 @@ router.post('/users/:userId/voice-logs', async (req, res) => {
   
       res.status(201).json(log);
     } catch (err) {
+        console.error(err); // Log the error for debugging
+
       res.status(500).json({ error: err.message });
     }
   });

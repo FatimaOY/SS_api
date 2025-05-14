@@ -3,8 +3,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { body, validationResult } = require('express-validator');
-const auth = require('../middleware/auth');
-// Get all medical records
+const auth = require('../middleware/auth');// Get all medical records
 router.get('/',auth, async (req, res) => {
   try {
     const records = await prisma.medicalrecords.findMany({

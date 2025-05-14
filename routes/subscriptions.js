@@ -1,3 +1,4 @@
+
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
@@ -6,6 +7,7 @@ const Stripe = require('stripe');
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 const auth = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
+
 
 
 // Create Stripe Checkout Session
@@ -28,27 +30,7 @@ router.post('/create-checkout-session', auth, async (req, res) => {
   }
 });
 
-// Stripe webhook endpoint
-router.post('/webhook',auth, express.raw({ type: 'application/json' }), async (req, res) => {
-    const sig = req.headers['stripe-signature'];
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-    } catch (err) {
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-  
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object;
-      // Update subscription status in DB
-      const user_id = parseInt(session.metadata.user_id);
-      await prisma.subscriptions.updateMany({
-        where: { user_id },
-        data: { status: 'active' }
-      });
-    }
-    res.json({ received: true });
-  });
+
 
 // Get all subscriptions
 router.get('/',auth, async (req, res) => {

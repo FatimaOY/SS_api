@@ -4,8 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { body, validationResult } = require('express-validator');
 const admin = require('firebase-admin');
-const auth = require('../middleware/auth');
-// Get all events
+const auth = require('../middleware/auth');// Get all events
 router.get('/',auth, async (req, res) => {
   try {
     const events = await prisma.events.findMany({

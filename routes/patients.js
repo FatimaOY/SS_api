@@ -119,9 +119,13 @@ router.get('/:id/medical-records', async (req, res) => {
 // Delete a patient
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.patients.delete({
-      where: { id: parseInt(req.params.id) }
-    });
+    const patientId = parseInt(req.params.id);
+    // Delete related medical records
+    await prisma.medicalrecords.deleteMany({ where: { patient_id: patientId } });
+    // Delete related caregiver links
+    await prisma.caregiverpatientlinks.deleteMany({ where: { patient_id: patientId } });
+    // Now delete the patient
+    await prisma.patients.delete({ where: { id: patientId } });
     res.status(204).send();
   } catch (error) {
     console.error("Error deleting patient:", error);

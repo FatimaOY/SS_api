@@ -5,7 +5,6 @@ const prisma = new PrismaClient();
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const auth = require('../middleware/auth');
-
 // Get current user's profile
 router.get('/:userId', auth, async (req, res) => {
   try {
