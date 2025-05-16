@@ -59,4 +59,18 @@ router.post('/devices/:id/locations', async (req, res) => {
   }
 });
 
+// Get latest GPS location for a device
+router.get('/devices/:id/location/latest', async (req, res) => {
+    try {
+      const location = await prisma.gps_locations.findFirst({
+        where: { device_id: parseInt(req.params.id) },
+        orderBy: { timestamp: 'desc' }
+      });
+      if (!location) return res.status(404).json({ error: 'No location found' });
+      res.json(location);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 module.exports = router;
