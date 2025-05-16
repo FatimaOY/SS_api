@@ -1,7 +1,9 @@
+require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const Stripe = require('stripe');
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+console.log('Stripe key:', process.env.STRIPE_SECRET_KEY);
 // Stripe requires the raw body to validate the signature
 router.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
   const sig = req.headers['stripe-signature'];

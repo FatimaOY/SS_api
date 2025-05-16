@@ -39,6 +39,7 @@ model users {
   medical_info       String?              @db.Text
   voiceassistantlogs voiceassistantlogs[]
   alerts     alerts[] // 👈 Add this line
+  role               String?
 }
 
 model alerts {
