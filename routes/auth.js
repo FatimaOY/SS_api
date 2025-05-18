@@ -33,7 +33,20 @@ router.post('/register', [
     phone,
     emergency_name,
     emergency_phone,
-    medical_info
+    medical_info,
+    date_of_birth,
+    gender,
+    blood_type,
+    allergies,
+    chronic_conditions,
+    current_medications,
+    past_surgeries,
+    primary_physician,
+    physician_contact,
+    preferred_pharmacy,
+    insurance_provider,
+    insurance_policy,
+    vaccination_records
   } = req.body;
 
   const hashed = await bcrypt.hash(password, 10);
@@ -49,7 +62,20 @@ router.post('/register', [
         phone,
         emergency_name,
         emergency_phone,
-        medical_info
+        medical_info,
+        date_of_birth: date_of_birth ? new Date(date_of_birth) : null,
+        gender,
+        blood_type,
+        allergies,
+        chronic_conditions,
+        current_medications,
+        past_surgeries,
+        primary_physician,
+        physician_contact,
+        preferred_pharmacy,
+        insurance_provider,
+        insurance_policy,
+        vaccination_records,
       }
     });
     res.status(201).json({ id: user.id, email: user.email });
