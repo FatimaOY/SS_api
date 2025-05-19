@@ -29,7 +29,6 @@ model users {
   events        events[]
   patients      patients[]
   subscriptions subscriptions[]
-
   first_name         String?              @db.VarChar(100)
   last_name          String?              @db.VarChar(100)
   address            String?              @db.VarChar(255)
@@ -39,7 +38,22 @@ model users {
   medical_info       String?              @db.Text
   voiceassistantlogs voiceassistantlogs[]
   alerts     alerts[] // 👈 Add this line
+  role               String?
+  date_of_birth      DateTime?   @db.Date
+  gender             String?     @db.VarChar(20)
+  blood_type         String?     @db.VarChar(10)
+  allergies          String?     @db.Text
+  chronic_conditions String?     @db.Text
+  current_medications String?    @db.Text
+  past_surgeries     String?     @db.Text
+  primary_physician  String?     @db.VarChar(100)
+  physician_contact  String?     @db.VarChar(100)
+  preferred_pharmacy String?     @db.VarChar(100)
+  insurance_provider String?     @db.VarChar(100)
+  insurance_policy   String?     @db.VarChar(100)
+  vaccination_records String?    @db.Text
 }
+
 
 model alerts {
   id         Int       @id @default(autoincrement())

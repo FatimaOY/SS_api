@@ -1,10 +1,11 @@
 const { Router } = require('express');
-
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+require('dotenv').config(); 
+
 
 const app = express();
 const prisma = new PrismaClient();
@@ -78,7 +79,8 @@ const voiceRoutes = require('./routes/voice');
 const profileRoutes = require('./routes/profile');
 const authRoutes = require('./routes/auth');
 const subscriptionRoutes = require('./routes/subscriptions');
-
+const eventsRouter = require('./routes/calendar'); // adjust path if needed
+app.use('/api/events', eventsRouter);
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // Use routes
