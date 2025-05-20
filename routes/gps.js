@@ -3,7 +3,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const axios = require('axios');
-
+const auth = require('../middleware/auth');
 
 // Get GPS history for a device
 router.get('/devices/:id/locations', async (req, res) => {
@@ -39,7 +39,7 @@ router.get('/route', async (req, res) => {
   });
 
 // Add a new GPS location for a device
-router.post('/devices/:id/locations', async (req, res) => {
+router.post('/devices/:id/locations', auth, async (req, res) => {
   const { latitude, longitude, accuracy } = req.body;
   if (latitude == null || longitude == null) {
     return res.status(400).json({ error: 'latitude and longitude are required' });
@@ -60,17 +60,34 @@ router.post('/devices/:id/locations', async (req, res) => {
 });
 
 // Get latest GPS location for a device
-router.get('/devices/:id/location/latest', async (req, res) => {
-    try {
-      const location = await prisma.gps_locations.findFirst({
-        where: { device_id: parseInt(req.params.id) },
-        orderBy: { timestamp: 'desc' }
-      });
-      if (!location) return res.status(404).json({ error: 'No location found' });
-      res.json(location);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
+// filepath: c:\Users\Gebruiker\Project_Lab_API\Backend\SS_api\routes\gps.js
+router.get('/devices/:id/location/latest', auth, async (req, res) => {
+  try {
+    // First check if device belongs to user
+    const device = await prisma.devices.findFirst({
+      where: { 
+        id: parseInt(req.params.id),
+        user_id: req.user.id 
+      }
+    });
+    
+    if (!device) {
+      return res.status(403).json({ error: 'Access denied to this device' });
     }
-  });
+    
+    // Then fetch location
+    const location = await prisma.gps_locations.findFirst({
+      where: { device_id: parseInt(req.params.id) },
+      orderBy: { timestamp: 'desc' }
+    });
+    
+    if (!location) return res.status(404).json({ error: 'No location found' });
+    res.json(location);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 module.exports = router;
