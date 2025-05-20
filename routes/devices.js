@@ -161,27 +161,41 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-router.post('/register', async (req, res) => {
-  try {
-    const device = await prisma.devices.findUnique({
-      where: { mac: '00:11:22:33:44:55' },
-      select: { id: true, user_id: true }
-    });
+router.post('/register', auth, async (req, res) => {
+  const { mac } = req.body;
+  const userId = req.user.id;
 
-    if (!device) {
-      return res.status(404).json({ error: 'Device with known MAC not found' });
+  if (!mac) {
+    return res.status(400).json({ error: 'MAC address is required' });
+  }
+
+  try {
+    let device = await prisma.devices.findUnique({ where: { mac } });
+
+    if (device) {
+      // Reassign device to this user
+      device = await prisma.devices.update({
+        where: { id: device.id },
+        data: { user_id: userId }
+      });
+    } else {
+      // Create new device if it doesn't exist
+      device = await prisma.devices.create({
+        data: { mac, user_id: userId }
+      });
     }
 
     res.status(200).json({
-      message: '✅ Using fixed MAC device',
+      message: '✅ Device registered and assigned to current user',
       device_id: device.id,
-      user_id: device.user_id
+      user_id: userId
     });
   } catch (error) {
-    console.error("Error returning default device:", error);
-    res.status(500).json({ error: error.message });
+    console.error("❌ Error in /devices/register:", error);
+    res.status(500).json({ error: 'Failed to register device' });
   }
 });
+
 
 
 
