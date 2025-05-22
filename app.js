@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Router } = require('express');
 const express = require('express');
 const cors = require('cors');
@@ -10,6 +11,7 @@ require('dotenv').config();
 const app = express();
 const prisma = new PrismaClient();
 const webhookRoutes = require('./routes/webhook');
+const calendarRoutes = require('./routes/calendar');
 
 // Middleware
 app.use(cors());
@@ -17,7 +19,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-
+app.use('/api/events', calendarRoutes);
 
 const webhookRouter = Router();
 webhookRouter.post(

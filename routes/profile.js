@@ -19,7 +19,20 @@ router.get('/:userId', auth, async (req, res) => {
         phone: true,
         emergency_name: true,
         emergency_phone: true,
-        medical_info: true
+        medical_info: true,
+        date_of_birth: true,
+        gender: true,
+        blood_type: true,
+        allergies: true,
+        chronic_conditions: true,
+        current_medications: true,
+        past_surgeries: true,
+        primary_physician: true,
+        physician_contact: true,
+        preferred_pharmacy: true,
+        insurance_provider: true,
+        insurance_policy: true,
+        vaccination_records: true,
       }
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -64,7 +77,21 @@ router.put('/:userId', auth,
         phone,
         emergency_name,
         emergency_phone,
-        medical_info
+        medical_info,
+        date_of_birth: req.body.date_of_birth ? new Date(req.body.date_of_birth) : undefined,
+        gender: req.body.gender,
+        blood_type: req.body.blood_type,
+        allergies: req.body.allergies,
+        chronic_conditions: req.body.chronic_conditions,
+        current_medications: req.body.current_medications,
+        past_surgeries: req.body.past_surgeries,
+        primary_physician: req.body.primary_physician,
+        physician_contact: req.body.physician_contact,
+        preferred_pharmacy: req.body.preferred_pharmacy,
+        insurance_provider: req.body.insurance_provider,
+        insurance_policy: req.body.insurance_policy,
+        vaccination_records: req.body.vaccination_records
+
       }
     });
     res.json(user);
