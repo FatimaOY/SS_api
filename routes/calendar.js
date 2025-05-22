@@ -4,24 +4,43 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { body, validationResult } = require('express-validator');
 const admin = require('firebase-admin');
+const auth = require('../middleware/auth');
 
-// Get all events
-router.get('/', async (req, res) => {
+// ✅ Create a new event using user ID from token
+router.post('/', auth, async (req, res) => {
+  const { title, description, start_time, end_time, type } = req.body;
+
+  if (!title) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+
   try {
-    const events = await prisma.events.findMany({
+    const event = await prisma.events.create({
+      data: {
+        user_id: req.user.id, // ✅ from token
+        title,
+        description,
+        start_time: start_time ? new Date(start_time) : null,
+        end_time: end_time ? new Date(end_time) : null,
+        type
+
+
+      },
       include: {
         users: true
       }
+
     });
-    res.json(events);
+    console.log("Fetched events:", this.events);
+    res.status(201).json(event);
   } catch (error) {
-    console.error("Error fetching events:", error);
+    console.error("Error creating event:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // Get events for a specific user
-router.get('/user/:userId', async (req, res) => {
+router.get('/user/:userId', auth, async (req, res) => {
   try {
     const events = await prisma.events.findMany({
       where: { user_id: parseInt(req.params.userId) },
@@ -36,37 +55,8 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
-// Create a new event
-router.post('/', async (req, res) => {
-  const { user_id, title, description, start_time, end_time, type } = req.body;
-
-  if (!user_id || !title) {
-    return res.status(400).json({ error: 'User ID and title are required' });
-  }
-
-  try {
-    const event = await prisma.events.create({
-      data: {
-        user_id: parseInt(user_id),
-        title,
-        description,
-        start_time: start_time ? new Date(start_time) : null,
-        end_time: end_time ? new Date(end_time) : null,
-        type
-      },
-      include: {
-        users: true
-      }
-    });
-    res.status(201).json(event);
-  } catch (error) {
-    console.error("Error creating event:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Update an event
-router.put('/:eventId', async (req, res) => {
+router.put('/:eventId', auth, async (req, res) => {
   const { title, description, start_time, end_time, type } = req.body;
 
   try {
@@ -91,7 +81,7 @@ router.put('/:eventId', async (req, res) => {
 });
 
 // Delete an event
-router.delete('/:eventId', async (req, res) => {
+router.delete('/:eventId', auth, async (req, res) => {
   try {
     await prisma.events.delete({
       where: { event_id: parseInt(req.params.eventId) }
@@ -103,4 +93,22 @@ router.delete('/:eventId', async (req, res) => {
   }
 });
 
-module.exports = router; 
+
+
+// Get events for the authenticated user
+router.get('/me', auth, async (req, res) => {
+  try {
+    const events = await prisma.events.findMany({
+      where: { user_id: req.user.id },
+      include: { users: true }
+    });
+    res.json(events);
+  } catch (err) {
+    console.error("Error fetching events for authenticated user:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+module.exports = router;

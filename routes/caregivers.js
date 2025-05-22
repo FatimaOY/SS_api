@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { body, validationResult } = require('express-validator');
 
 // Get all caregivers
 router.get('/', async (req, res) => {
@@ -48,53 +49,53 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create a new caregiver
-router.post('/', async (req, res) => {
-  const { user_id } = req.body;
+router.post('/',
+  [
+    body('user_id').isInt().withMessage('User ID is required and must be an integer')
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  if (!user_id) {
-    return res.status(400).json({ error: 'User ID is required' });
+    const { user_id } = req.body;
+    try {
+      const caregiver = await prisma.caregivers.create({
+        data: { user_id: parseInt(user_id) },
+        include: { users: true }
+      });
+      res.status(201).json(caregiver);
+    } catch (error) {
+      console.error("Error creating caregiver:", error);
+      res.status(500).json({ error: error.message });
+    }
   }
-
-  try {
-    const caregiver = await prisma.caregivers.create({
-      data: {
-        user_id: parseInt(user_id)
-      },
-      include: {
-        users: true
-      }
-    });
-    res.status(201).json(caregiver);
-  } catch (error) {
-    console.error("Error creating caregiver:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
+);
 
 // Link caregiver to patient
-router.post('/:id/patients', async (req, res) => {
-  const { patient_id } = req.body;
+router.post('/:id/patients',
+  [
+    body('patient_id').isInt().withMessage('Patient ID is required and must be an integer')
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  if (!patient_id) {
-    return res.status(400).json({ error: 'Patient ID is required' });
+    const { patient_id } = req.body;
+    try {
+      const link = await prisma.caregiverpatientlinks.create({
+        data: {
+          caregiver_id: parseInt(req.params.id),
+          patient_id: parseInt(patient_id)
+        },
+        include: { patients: true }
+      });
+      res.status(201).json(link);
+    } catch (error) {
+      console.error("Error linking caregiver to patient:", error);
+      res.status(500).json({ error: error.message });
+    }
   }
-
-  try {
-    const link = await prisma.caregiverpatientlinks.create({
-      data: {
-        caregiver_id: parseInt(req.params.id),
-        patient_id: parseInt(patient_id)
-      },
-      include: {
-        patients: true
-      }
-    });
-    res.status(201).json(link);
-  } catch (error) {
-    console.error("Error linking caregiver to patient:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
+);
 
 // Unlink caregiver from patient
 router.delete('/:id/patients/:patientId', async (req, res) => {

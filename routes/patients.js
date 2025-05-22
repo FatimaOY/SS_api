@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { body, validationResult } = require('express-validator');
 
 // Get all patients
 router.get('/', async (req, res) => {
@@ -50,28 +51,27 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create a new patient
-router.post('/', async (req, res) => {
-  const { user_id } = req.body;
+router.post('/',
+  [
+    body('user_id').isInt().withMessage('User ID is required and must be an integer')
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  if (!user_id) {
-    return res.status(400).json({ error: 'User ID is required' });
+    const { user_id } = req.body;
+    try {
+      const patient = await prisma.patients.create({
+        data: { user_id: parseInt(user_id) },
+        include: { users: true }
+      });
+      res.status(201).json(patient);
+    } catch (error) {
+      console.error("Error creating patient:", error);
+      res.status(500).json({ error: error.message });
+    }
   }
-
-  try {
-    const patient = await prisma.patients.create({
-      data: {
-        user_id: parseInt(user_id)
-      },
-      include: {
-        users: true
-      }
-    });
-    res.status(201).json(patient);
-  } catch (error) {
-    console.error("Error creating patient:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
+);
 
 // Get patient's caregivers
 router.get('/:id/caregivers', async (req, res) => {
@@ -119,9 +119,13 @@ router.get('/:id/medical-records', async (req, res) => {
 // Delete a patient
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.patients.delete({
-      where: { id: parseInt(req.params.id) }
-    });
+    const patientId = parseInt(req.params.id);
+    // Delete related medical records
+    await prisma.medicalrecords.deleteMany({ where: { patient_id: patientId } });
+    // Delete related caregiver links
+    await prisma.caregiverpatientlinks.deleteMany({ where: { patient_id: patientId } });
+    // Now delete the patient
+    await prisma.patients.delete({ where: { id: patientId } });
     res.status(204).send();
   } catch (error) {
     console.error("Error deleting patient:", error);

@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-
-// Get all medical records
-router.get('/', async (req, res) => {
+const { body, validationResult } = require('express-validator');
+const auth = require('../middleware/auth');// Get all medical records
+router.get('/',auth, async (req, res) => {
   try {
     const records = await prisma.medicalrecords.findMany({
       include: {
@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get medical records for a specific patient
-router.get('/patient/:patientId', async (req, res) => {
+router.get('/patient/:patientId', auth, async (req, res) => {
   try {
     const records = await prisma.medicalrecords.findMany({
       where: { patient_id: parseInt(req.params.patientId) },
@@ -41,33 +41,36 @@ router.get('/patient/:patientId', async (req, res) => {
 });
 
 // Create a new medical record
-router.post('/', async (req, res) => {
-  const { patient_id, medical_condition, notes } = req.body;
+router.post('/', auth,
+  [
+    body('patient_id').isInt().withMessage('Patient ID is required and must be an integer'),
+    body('medical_condition').optional().isString(),
+    body('notes').optional().isString()
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  if (!patient_id) {
-    return res.status(400).json({ error: 'Patient ID is required' });
+    const { patient_id, medical_condition, notes } = req.body;
+    try {
+      const record = await prisma.medicalrecords.create({
+        data: {
+          patient_id: parseInt(patient_id),
+          medical_condition,
+          notes
+        },
+        include: { patients: true }
+      });
+      res.status(201).json(record);
+    } catch (error) {
+      console.error("Error creating medical record:", error);
+      res.status(500).json({ error: error.message });
+    }
   }
-
-  try {
-    const record = await prisma.medicalrecords.create({
-      data: {
-        patient_id: parseInt(patient_id),
-        medical_condition,
-        notes
-      },
-      include: {
-        patients: true
-      }
-    });
-    res.status(201).json(record);
-  } catch (error) {
-    console.error("Error creating medical record:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
+);
 
 // Update a medical record
-router.put('/:recordId', async (req, res) => {
+router.put('/:recordId', auth, async (req, res) => {
   const { medical_condition, notes } = req.body;
 
   try {
@@ -89,7 +92,7 @@ router.put('/:recordId', async (req, res) => {
 });
 
 // Delete a medical record
-router.delete('/:recordId', async (req, res) => {
+router.delete('/:recordId', auth,async (req, res) => {
   try {
     await prisma.medicalrecords.delete({
       where: { record_id: parseInt(req.params.recordId) }
