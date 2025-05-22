@@ -13,17 +13,38 @@ const { body, validationResult } = require('express-validator');
 // Create Stripe Checkout Session
 router.post('/create-checkout-session', auth, async (req, res) => {
   const { user_id, plan } = req.body;
-  // Define your plan price IDs in Stripe dashboard
-  const priceId = plan === 'premium' ? 'price_123' : 'price_456';
+
+  // Map plan string to Stripe price ID
+  let priceId;
+  if (plan === 'premium_1m') priceId = 'price_1RQE1cPctqOdZhsAYWkP3yJZ';    // Replace with your Stripe price ID
+  if (plan === 'premium_3m') priceId = 'price_1RQE2NPctqOdZhsAyvYL2kqo';    // Replace with your Stripe price ID
+  if (plan === 'premium_12m') priceId = 'price_1RQE2xPctqOdZhsAfgicKFN7';  // Replace with your Stripe price ID
+
+  if (!priceId) {
+    return res.status(400).json({ error: 'Invalid plan selected.' });
+  }
+
   try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      success_url: 'https://yourdomain.com/success?session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: 'https://yourdomain.com/cancel',
-      metadata: { user_id }
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      
+      customer_email: req.user.email, // or fetch from DB
+      
+      success_url: `${process.env.FRONTEND_URL}/subscription-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL}/subscription-cancelled`,
+      metadata: {
+        user_id: user_id,
+        plan: plan
+      }
     });
+
     res.json({ url: session.url });
   } catch (err) {
     res.status(500).json({ error: err.message });

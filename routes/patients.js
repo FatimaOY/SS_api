@@ -4,27 +4,34 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { body, validationResult } = require('express-validator');
 
-// Get all patients
 router.get('/', async (req, res) => {
+  const { user_id } = req.query;
   try {
-    const patients = await prisma.patients.findMany({
-      include: {
-        users: true,
-        caregiverpatientlinks: {
-          include: {
-            caregivers: true
-          }
-        },
-        medicalrecords: true
-      }
-    });
-    res.json(patients);
+    if (user_id) {
+      const patients = await prisma.patients.findMany({
+        where: { user_id: parseInt(user_id) },
+        include: {
+          users: true,
+          caregiverpatientlinks: { include: { caregivers: true } },
+          medicalrecords: true
+        }
+      });
+      return res.json(patients);
+    } else {
+      const patients = await prisma.patients.findMany({
+        include: {
+          users: true,
+          caregiverpatientlinks: { include: { caregivers: true } },
+          medicalrecords: true
+        }
+      });
+      return res.json(patients);
+    }
   } catch (error) {
     console.error("Error fetching patients:", error);
     res.status(500).json({ error: error.message });
   }
 });
-
 // Get patient by ID
 router.get('/:id', async (req, res) => {
   try {

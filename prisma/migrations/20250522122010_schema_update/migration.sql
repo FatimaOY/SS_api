@@ -3,10 +3,10 @@ CREATE TABLE `devices` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `mac` VARCHAR(100) NOT NULL,
     `name` VARCHAR(100) NULL DEFAULT 'Unnamed Device',
-    `user_id` INTEGER NOT NULL,
+    `patient_id` INTEGER NOT NULL,
 
     UNIQUE INDEX `mac`(`mac`),
-    INDEX `user_id`(`user_id`),
+    INDEX `patient_id`(`patient_id`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -23,6 +23,20 @@ CREATE TABLE `users` (
     `emergency_name` VARCHAR(100) NULL,
     `emergency_phone` VARCHAR(50) NULL,
     `medical_info` TEXT NULL,
+    `role` VARCHAR(191) NULL,
+    `date_of_birth` DATE NULL,
+    `gender` VARCHAR(20) NULL,
+    `blood_type` VARCHAR(10) NULL,
+    `allergies` TEXT NULL,
+    `chronic_conditions` TEXT NULL,
+    `current_medications` TEXT NULL,
+    `past_surgeries` TEXT NULL,
+    `primary_physician` VARCHAR(100) NULL,
+    `physician_contact` VARCHAR(100) NULL,
+    `preferred_pharmacy` VARCHAR(100) NULL,
+    `insurance_provider` VARCHAR(100) NULL,
+    `insurance_policy` VARCHAR(100) NULL,
+    `vaccination_records` TEXT NULL,
 
     UNIQUE INDEX `email`(`email`),
     PRIMARY KEY (`id`)
@@ -36,11 +50,11 @@ CREATE TABLE `alerts` (
     `lng` DECIMAL(9, 6) NULL,
     `created_at` DATETIME(0) NULL DEFAULT CURRENT_TIMESTAMP(0),
     `device_id` INTEGER NOT NULL,
-    `user_id` INTEGER NOT NULL,
+    `patient_id` INTEGER NULL,
     `handled` BOOLEAN NOT NULL DEFAULT false,
 
-    INDEX `device_id`(`device_id`),
-    INDEX `user_id`(`user_id`),
+    INDEX `alerts_device_id_idx`(`device_id`),
+    INDEX `alerts_patient_id_idx`(`patient_id`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -139,13 +153,13 @@ CREATE TABLE `voiceassistantlogs` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- AddForeignKey
-ALTER TABLE `devices` ADD CONSTRAINT `devices_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
+ALTER TABLE `devices` ADD CONSTRAINT `devices_patient_fk` FOREIGN KEY (`patient_id`) REFERENCES `patients`(`id`) ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE `alerts` ADD CONSTRAINT `alerts_ibfk_1` FOREIGN KEY (`device_id`) REFERENCES `devices`(`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
+ALTER TABLE `alerts` ADD CONSTRAINT `alerts_device_id_fkey` FOREIGN KEY (`device_id`) REFERENCES `devices`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `alerts` ADD CONSTRAINT `alerts_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
+ALTER TABLE `alerts` ADD CONSTRAINT `alerts_patient_id_fkey` FOREIGN KEY (`patient_id`) REFERENCES `patients`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `caregiverpatientlinks` ADD CONSTRAINT `caregiverpatientlinks_ibfk_1` FOREIGN KEY (`caregiver_id`) REFERENCES `caregivers`(`id`) ON DELETE NO ACTION ON UPDATE NO ACTION;
