@@ -1,16 +1,18 @@
+require('dotenv').config();
 const { Router } = require('express');
 require('dotenv').config();
-
-
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+require('dotenv').config(); 
+
 
 const app = express();
 const prisma = new PrismaClient();
 const webhookRoutes = require('./routes/webhook');
+const calendarRoutes = require('./routes/calendar');
 
 // Middleware
 app.use(cors());
@@ -18,7 +20,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-
+app.use('/api/events', calendarRoutes);
 
 const webhookRouter = Router();
 webhookRouter.post(
@@ -80,7 +82,8 @@ const voiceRoutes = require('./routes/voice');
 const profileRoutes = require('./routes/profile');
 const authRoutes = require('./routes/auth');
 const subscriptionRoutes = require('./routes/subscriptions');
-
+const eventsRouter = require('./routes/calendar'); // adjust path if needed
+app.use('/api/events', eventsRouter);
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // Use routes

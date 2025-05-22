@@ -3,10 +3,14 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { body, validationResult } = require('express-validator');
+
 const auth = require('../middleware/auth'); // Get all devices
 router.get('/', auth, async (req, res) => {
   try {
     const devices = await prisma.devices.findMany({
+      where: {
+        user_id: req.user.id
+      },
       include: {
         patients: {
           include: {
