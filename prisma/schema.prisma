@@ -37,7 +37,6 @@ model users {
   emergency_phone    String?              @db.VarChar(50)
   medical_info       String?              @db.Text
   voiceassistantlogs voiceassistantlogs[]
-  alerts     alerts[] // 👈 Add this line
   role               String?
   date_of_birth      DateTime?   @db.Date
   gender             String?     @db.VarChar(20)
