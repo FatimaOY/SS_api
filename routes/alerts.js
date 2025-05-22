@@ -5,7 +5,10 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const admin = require('firebase-admin');
 const { body, validationResult } = require('express-validator');
+const deviceAuth = require('./middleware/deviceAuth');
 const auth = require('../middleware/auth');
+
+// Setup mail transporter
 const transporter = nodemailer.createTransport({
   service: 'Gmail',
   auth: {
@@ -14,17 +17,31 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Get all alerts
+// Get alerts for a specific patient
 router.get('/', auth, async (req, res) => {
+  const patientId = parseInt(req.query.patientId);
+  if (!patientId) return res.status(400).json({ error: 'Missing patientId in query' });
+
   try {
     const alerts = await prisma.alerts.findMany({
-      include: {
-        devices: true,
-        // users: true
+      where: { patient_id: patientId },
+      include: { 
+        devices: {
+          include: {
+            patients: {
+              include: {
+                users: true
+              }
+            }
+          }
+        },
+        patients: {
+          include: {
+            users: true
+          }
+        }
       },
-      orderBy: {
-        created_at: 'desc'
-      }
+      orderBy: { created_at: 'desc' }
     });
     res.json(alerts);
   } catch (err) {
@@ -33,36 +50,55 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// Get alerts for the current user's patient record
+router.get('/my-alerts', auth, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-
-// Get alerts for a specific device
-router.get('/device/:deviceId', auth, async (req, res) => {
   try {
+    // Find the patient record for this user
+    const patient = await prisma.patients.findFirst({
+      where: { user_id: userId }
+    });
+
+    if (!patient) {
+      return res.status(404).json({ error: 'No patient record found for this user' });
+    }
+
     const alerts = await prisma.alerts.findMany({
-      where: {
-        device_id: parseInt(req.params.deviceId)
+      where: { patient_id: patient.id },
+      include: { 
+        devices: {
+          include: {
+            patients: {
+              include: {
+                users: true
+              }
+            }
+          }
+        },
+        patients: {
+          include: {
+            users: true
+          }
+        }
       },
-      include: {
-        devices: true,
-        users: true
-      },
-      orderBy: {
-        created_at: 'desc'
-      }
+      orderBy: { created_at: 'desc' }
     });
     res.json(alerts);
   } catch (err) {
-    console.error("Error fetching device alerts:", err);
-    res.status(500).json({ error: 'Failed to fetch device alerts' });
+    console.error("Error fetching alerts:", err);
+    res.status(500).json({ error: 'Failed to fetch alerts' });
   }
 });
 
-// Create a new alert (standardized)
-router.post('/', auth,
+// Web-based alert creation
+router.post(
+  '/',
   [
-    body('message').isString().withMessage('Message is required'),
-    body('device_id').isInt().withMessage('Device ID is required and must be an integer'),
-    body('user_id').isInt().withMessage('User ID is required and must be an integer'),
+    body('message').isString(),
+    body('device_id').isInt(),
+    body('patient_id').isInt(),
     body('lat').optional().isFloat(),
     body('lng').optional().isFloat()
   ],
@@ -70,105 +106,189 @@ router.post('/', auth,
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  const { message, lat, lng, device_id, user_id } = req.body;
+    const { message, lat, lng, device_id, patient_id } = req.body;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-  if (!message || !device_id || !user_id) {
-    return res.status(400).json({ error: 'Message, device_id, and user_id are required' });
+    try {
+      // Verify the patient exists and belongs to the user
+      const patient = await prisma.patients.findFirst({
+        where: { 
+          id: parseInt(patient_id),
+          user_id: userId
+        },
+        include: {
+          users: true,
+          caregiverpatientlinks: {
+            include: {
+              caregivers: {
+                include: { users: true }
+              }
+            }
+          }
+        }
+      });
+
+      if (!patient) {
+        return res.status(403).json({ error: 'Patient not found or unauthorized' });
+      }
+
+      const alert = await prisma.alerts.create({
+        data: {
+          message,
+          lat: lat ?? null,
+          lng: lng ?? null,
+          device_id,
+          patient_id: parseInt(patient_id),
+          handled: false
+        },
+        include: { 
+          devices: true,
+          patients: {
+            include: {
+              users: true,
+              caregiverpatientlinks: {
+                include: {
+                  caregivers: {
+                    include: { users: true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      await sendNotifications(alert, patient);
+      res.status(201).json({ message: '🚨 Alert triggered and notifications sent!', alert });
+    } catch (err) {
+      console.error("❌ Error creating alert:", err);
+      res.status(500).json({ error: 'Failed to create alert' });
+    }
+  }
+);
+
+// Device-based alert (Arduino) using secure token
+router.post('/from-device', deviceAuth, async (req, res) => {
+  const { message, lat, lng, device_id, patient_id } = req.body;
+
+  if (!message || !device_id || !patient_id) {
+    return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  try {
-    // 1. Create alert in DB
-    const alert = await prisma.alerts.create({
-      data: {
-        message,
-        lat: lat ? parseFloat(lat) : null,
-        lng: lng ? parseFloat(lng) : null,
-        device_id: parseInt(device_id),
-        user_id: parseInt(user_id),
-        handled: false
-      },
-      include: {
-        users: true,
-        devices: true
+  // Find patient
+  const patient = await prisma.patients.findUnique({
+    where: { id: parseInt(patient_id) },
+    include: {
+      users: true,
+      caregiverpatientlinks: {
+        include: {
+          caregivers: {
+            include: { users: true }
+          }
+        }
       }
-    });
+    }
+  });
 
-    
-    // Safe access to user email and name
-    const userEmail = alert.users?.email || 'admin@example.com';
-    const userName = `${alert.users?.FirstName || 'Unknown'} ${alert.users?.LastName || ''}`;
-    const locationUrl = (lat && lng) ? `\nLocation: https://maps.google.com/?q=${lat},${lng}` : '';
+  if (!patient) {
+    return res.status(404).json({ error: 'Patient not found' });
+  }
 
+  const alert = await prisma.alerts.create({
+    data: {
+      message,
+      lat: lat ?? null,
+      lng: lng ?? null,
+      device_id,
+      patient_id: parseInt(patient_id),
+      handled: false
+    },
+    include: {
+      devices: true,
+      patients: {
+        include: {
+          users: true
+        }
+      }
+    }
+  });
+
+  await sendNotifications(alert, patient);
+  res.status(201).json({ message: 'Alert created', alert });
+});
+
+
+// Shared notification logic
+async function sendNotifications(alert, patient) {
+  const { message, lat, lng, created_at, devices } = alert;
+  const user = patient.users;
+
+  const userName = `${user.first_name || 'Unknown'} ${user.last_name || ''}`.trim();
+  const locationUrl = lat && lng ? `\nLocation: https://maps.google.com/?q=${lat},${lng}` : '';
+
+  // Notify the patient themselves
+  if (user.email) {
     await transporter.sendMail({
       from: 'alert@yourdomain.com',
-      to: userEmail,
+      to: user.email,
       subject: '🚨 Emergency Alert Triggered',
-      text: `User ${userName} triggered an emergency on device ${device_id} at ${alert.created_at?.toISOString()}${locationUrl}`
+      text: `User ${userName} triggered an emergency on device ${devices.id} at ${created_at?.toISOString()}${locationUrl}`
     });
+  }
 
-    //  Find all caregivers for this user (assuming patient-caregiver links)
-    const patient = await prisma.patients.findFirst({
-      where: { user_id: parseInt(user_id) },
-      include: {
-        caregiverpatientlinks: {
+  // Notify caregivers
+  const caregivers = patient.caregiverpatientlinks.map(link => link.caregivers.users);
+
+  for (const caregiver of caregivers) {
+    if (caregiver.email) {
+      await transporter.sendMail({
+        from: 'alert@yourdomain.com',
+        to: caregiver.email,
+        subject: '🚨 Emergency Alert Triggered',
+        text: `Patient ${userName} triggered an emergency on device ${devices.id} at ${created_at?.toISOString()}${locationUrl}`
+      });
+    }
+
+    if (caregiver.fcm_token) {
+      await admin.messaging().send({
+        notification: {
+          title: '🚨 Emergency Alert',
+          body: message
+        },
+        token: caregiver.fcm_token
+      });
+    }
+  }
+}
+
+
+// Mark alert as handled
+router.put('/:id', async (req, res) => {
+  try {
+    const alert = await prisma.alerts.update({
+      where: { id: parseInt(req.params.id) },
+      data: { handled: true },
+      include: { 
+        devices: true,
+        patients: {
           include: {
-            caregivers: {
-              include: { users: true }
-            }
+            users: true
           }
         }
       }
     });
-
-    const caregivers = patient
-      ? patient.caregiverpatientlinks.map(link => link.caregivers.users)
-      : [];
-
-    // 3. Send email and push notifications to each caregiver
-    for (const caregiver of caregivers) {
-      // Email
-      if (caregiver.email) {
-        await transporter.sendMail({
-          from: 'alert@yourdomain.com',
-          to: caregiver.email,
-          subject: '🚨 Emergency Alert Triggered',
-          text: `User ${alert.users.email} triggered an emergency on device ${device_id} at ${alert.created_at?.toISOString()}`
-        });
-      }
-      // Push notification
-      if (caregiver.fcm_token) {
-        await admin.messaging().send({
-          notification: {
-            title: '🚨 Emergency Alert',
-            body: message,
-          },
-          token: caregiver.fcm_token,
-        });
-      }
-    }
-
-    res.status(201).json({
-      message: '🚨 Emergency alert triggered and notifications sent!',
-      alert
-    });
+    res.json(alert);
   } catch (err) {
-    console.error("❌ Error creating alert:", err);
-    res.status(500).json({
-      error: 'Failed to create alert',
-      message: err.message,
-      stack: err.stack
-    });
+    console.error("Error updating alert:", err);
+    res.status(500).json({ error: 'Failed to update alert' });
   }
 });
 
-// Delete an alert
-router.delete('/:id',auth, async (req, res) => {
+// Delete alert
+router.delete('/:id', async (req, res) => {
   try {
-    await prisma.alerts.delete({
-      where: {
-        id: parseInt(req.params.id)
-      }
-    });
+    await prisma.alerts.delete({ where: { id: parseInt(req.params.id) } });
     res.status(204).send();
   } catch (err) {
     console.error("Error deleting alert:", err);

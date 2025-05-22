@@ -3,9 +3,8 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { body, validationResult } = require('express-validator');
-const auth = require('../middleware/auth');
 
-
+const auth = require('../middleware/auth'); // Get all devices
 router.get('/', auth, async (req, res) => {
   try {
     const devices = await prisma.devices.findMany({
@@ -13,8 +12,13 @@ router.get('/', auth, async (req, res) => {
         user_id: req.user.id
       },
       include: {
-        users: true,
-        alerts: true
+        patients: {
+          include: {
+            users: true // ✅ get patient name/email
+          }
+        },
+        alerts: true,
+        gps_locations: true
       }
     });
     res.json(devices);
@@ -24,14 +28,20 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+
 // Get device by ID
-router.get('/:id',auth, async (req, res) => {
+router.get('/:id', auth, async (req, res) => {
   try {
     const device = await prisma.devices.findUnique({
       where: { id: parseInt(req.params.id) },
       include: {
-        users: true,
-        alerts: true
+        patients: {
+          include: {
+            users: true
+          }
+        },
+        alerts: true,
+        gps_locations: true
       }
     });
     if (!device) {
@@ -45,13 +55,18 @@ router.get('/:id',auth, async (req, res) => {
 });
 
 // Get device by MAC address
-router.get('/mac/:mac',auth, async (req, res) => {
+router.get('/mac/:mac', auth, async (req, res) => {
   try {
     const device = await prisma.devices.findUnique({
       where: { mac: req.params.mac },
       include: {
-        users: true,
-        alerts: true
+        patients: {
+          include: {
+            users: true
+          }
+        },
+        alerts: true,
+        gps_locations: true
       }
     });
     if (!device) {
@@ -64,13 +79,16 @@ router.get('/mac/:mac',auth, async (req, res) => {
   }
 });
 
+// GET /api/devices/by-mac/:mac
+// GET /api/devices/by-mac/:mac
 router.get('/by-mac/:mac', async (req, res) => {
   try {
+    const mac = req.params.mac;
     const device = await prisma.devices.findUnique({
-      where: { mac: req.params.mac },
+      where: { mac },
       select: {
         id: true,
-        user_id: true
+        patient_id: true  // ✅ this is the new field you added in your schema
       }
     });
 
@@ -78,34 +96,45 @@ router.get('/by-mac/:mac', async (req, res) => {
       return res.status(404).json({ error: 'Device not found' });
     }
 
-    res.json({ device_id: device.id, user_id: device.user_id });
-  } catch (error) {
-    console.error("Error fetching device by MAC:", error);
-    res.status(500).json({ error: error.message });
+    res.json({
+      device_id: device.id,
+      patient_id: device.patient_id
+    });
+  } catch (err) {
+    console.error("🔥 Error fetching device by MAC:", err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+
 
 
 // Create a new device
 router.post('/', auth,
   [
     body('mac').isString().withMessage('MAC address is required'),
-    body('user_id').optional().isInt().withMessage('User ID must be an integer'),
+    body('patient_id').isInt().withMessage('Patient ID is required and must be an integer'),
     body('name').optional().isString()
   ],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-    const { mac, name, user_id } = req.body;
+    const { mac, name, patient_id } = req.body;
     try {
       const device = await prisma.devices.create({
         data: {
           mac,
           name: name || null,
-          user_id: user_id ? parseInt(user_id) : null
+          patient_id: parseInt(patient_id)
         },
-        include: { users: true }
+        include: {
+          patients: {
+            include: {
+              users: true
+            }
+          }
+        }
       });
       res.status(201).json(device);
     } catch (error) {
@@ -117,17 +146,23 @@ router.post('/', auth,
 
 // Update a device
 router.put('/:id', auth, async (req, res) => {
-  const { name, user_id } = req.body;
+  const { name, patient_id } = req.body;
 
   try {
     const device = await prisma.devices.update({
       where: { id: parseInt(req.params.id) },
       data: {
         name: name || undefined,
-        user_id: user_id ? parseInt(user_id) : undefined
+        patient_id: patient_id ? parseInt(patient_id) : undefined
       },
       include: {
-        users: true
+        patients: {
+          include: {
+            users: true
+          }
+        },
+        alerts: true,
+        gps_locations: true
       }
     });
     res.json(device);
@@ -166,27 +201,53 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-router.post('/register', async (req, res) => {
+router.post('/register', auth, async (req, res) => {
+  const { mac } = req.body;
+  const userId = req.user.id;
+
+  if (!mac) {
+    return res.status(400).json({ error: 'MAC address is required' });
+  }
+
   try {
-    const device = await prisma.devices.findUnique({
-      where: { mac: '00:11:22:33:44:55' },
-      select: { id: true, user_id: true }
+    // Find the patient record for this user
+    const patient = await prisma.patients.findFirst({
+      where: { user_id: userId }
     });
 
-    if (!device) {
-      return res.status(404).json({ error: 'Device with known MAC not found' });
+    if (!patient) {
+      return res.status(400).json({ error: 'User is not registered as a patient' });
+    }
+
+    let device = await prisma.devices.findUnique({ where: { mac } });
+
+    if (device) {
+      // Reassign device to this patient
+      device = await prisma.devices.update({
+        where: { id: device.id },
+        data: { patient_id: patient.id }
+      });
+    } else {
+      // Create new device if it doesn't exist
+      device = await prisma.devices.create({
+        data: { 
+          mac, 
+          patient_id: patient.id 
+        }
+      });
     }
 
     res.status(200).json({
-      message: '✅ Using fixed MAC device',
+      message: '✅ Device registered and assigned to current patient',
       device_id: device.id,
-      user_id: device.user_id
+      patient_id: patient.id
     });
   } catch (error) {
-    console.error("Error returning default device:", error);
-    res.status(500).json({ error: error.message });
+    console.error("❌ Error in /devices/register:", error);
+    res.status(500).json({ error: 'Failed to register device' });
   }
 });
+
 
 
 
