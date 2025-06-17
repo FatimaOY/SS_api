@@ -5,16 +5,13 @@ const prisma = new PrismaClient();
 const { body, validationResult } = require('express-validator');
 
 const auth = require('../middleware/auth'); // Get all devices
-router.get('/', auth, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const devices = await prisma.devices.findMany({
-      where: {
-        user_id: req.user.id
-      },
       include: {
         patients: {
           include: {
-            users: true // ✅ get patient name/email
+            users: true
           }
         },
         alerts: true,
@@ -27,6 +24,7 @@ router.get('/', auth, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 
 // Get device by ID
@@ -55,10 +53,12 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // Get device by MAC address
-router.get('/mac/:mac', auth, async (req, res) => {
+router.get('/mac/:mac', async (req, res) => {
   try {
+    const mac = req.params.mac.toUpperCase(); // sanitize, but don't add colons
+
     const device = await prisma.devices.findUnique({
-      where: { mac: req.params.mac },
+      where: { mac },
       include: {
         patients: {
           include: {
@@ -69,43 +69,17 @@ router.get('/mac/:mac', auth, async (req, res) => {
         gps_locations: true
       }
     });
+
     if (!device) {
       return res.status(404).json({ error: 'Device not found' });
     }
+
     res.json(device);
   } catch (error) {
     console.error("Error fetching device:", error);
     res.status(500).json({ error: error.message });
   }
 });
-
-// GET /api/devices/by-mac/:mac
-// GET /api/devices/by-mac/:mac
-router.get('/by-mac/:mac', async (req, res) => {
-  try {
-    const mac = req.params.mac;
-    const device = await prisma.devices.findUnique({
-      where: { mac },
-      select: {
-        id: true,
-        patient_id: true  // ✅ this is the new field you added in your schema
-      }
-    });
-
-    if (!device) {
-      return res.status(404).json({ error: 'Device not found' });
-    }
-
-    res.json({
-      device_id: device.id,
-      patient_id: device.patient_id
-    });
-  } catch (err) {
-    console.error("🔥 Error fetching device by MAC:", err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 
 
 
