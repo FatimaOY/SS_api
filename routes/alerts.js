@@ -296,4 +296,47 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+router.get('/for-caregiver', auth, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    // Find patients linked to this caregiver
+    const caregiver = await prisma.caregivers.findUnique({
+      where: { user_id: userId },
+      include: {
+        caregiverpatientlinks: {
+          include: {
+            patients: true
+          }
+        }
+      }
+    });
+
+    if (!caregiver) {
+      return res.status(403).json({ error: 'Not a caregiver' });
+    }
+
+    const patientIds = caregiver.caregiverpatientlinks.map(link => link.patients.id);
+
+    const alerts = await prisma.alerts.findMany({
+      where: {
+        patient_id: { in: patientIds }
+      },
+      include: {
+        patients: {
+          include: { users: true }
+        },
+        devices: true
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    res.json(alerts);
+  } catch (error) {
+    console.error("Error fetching caregiver alerts:", error);
+    res.status(500).json({ error: 'Failed to fetch caregiver alerts' });
+  }
+});
+
 module.exports = router;
