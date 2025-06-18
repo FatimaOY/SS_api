@@ -91,6 +91,34 @@ router.get('/my-alerts', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch alerts' });
   }
 });
+// Get a single alert by ID
+router.get('/:id', auth, async (req, res) => {
+  const alertId = parseInt(req.params.id);
+  if (isNaN(alertId)) {
+    return res.status(400).json({ error: 'Invalid alert ID' });
+  }
+
+  try {
+    const alert = await prisma.alerts.findUnique({
+      where: { id: alertId },
+      include: {
+        devices: true,
+        patients: {
+          include: { users: true }
+        }
+      }
+    });
+
+    if (!alert) {
+      return res.status(404).json({ error: 'Alert not found' });
+    }
+
+    res.json(alert);
+  } catch (err) {
+    console.error("Error fetching alert:", err);
+    res.status(500).json({ error: 'Failed to fetch alert' });
+  }
+});
 
 // Web-based alert creation
 router.post(
