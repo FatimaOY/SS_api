@@ -24,18 +24,17 @@ router.get('/',auth, async (req, res) => {
 // Get medical records for a specific patient
 router.get('/patient/:patientId', auth, async (req, res) => {
   try {
+    const patientId = parseInt(req.params.patientId, 10);
+    if (isNaN(patientId)) {
+      return res.status(400).json({ error: 'Invalid patient ID' });
+    }
     const records = await prisma.medicalrecords.findMany({
-      where: { patient_id: parseInt(req.params.patientId) },
-      include: {
-        patients: true
-      },
-      orderBy: {
-        created_at: 'desc'
-      }
+      where: { patient_id: patientId },
+      include: { patients: true },
+      orderBy: { created_at: "desc" }
     });
     res.json(records);
   } catch (error) {
-    console.error("Error fetching patient medical records:", error);
     res.status(500).json({ error: error.message });
   }
 });

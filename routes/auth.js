@@ -49,50 +49,50 @@ router.post('/register', [
   } = req.body;
 
   const hashed = await bcrypt.hash(password, 10);
-try {
-  const user = await prisma.users.create({
-    data: {
-      email,
-      password: hashed,
-      role,
-      first_name,
-      last_name,
-      address,
-      phone,
-      emergency_name,
-      emergency_phone,
-      medical_info,
-      date_of_birth: date_of_birth ? new Date(date_of_birth) : null,
-      gender,
-      blood_type,
-      allergies,
-      chronic_conditions,
-      current_medications,
-      past_surgeries,
-      primary_physician,
-      physician_contact,
-      preferred_pharmacy,
-      insurance_provider,
-      insurance_policy,
-      vaccination_records,
+  try {
+    const user = await prisma.users.create({
+      data: {
+        email,
+        password: hashed,
+        role,
+        first_name,
+        last_name,
+        address,
+        phone,
+        emergency_name,
+        emergency_phone,
+        medical_info,
+        date_of_birth: date_of_birth ? new Date(date_of_birth) : null,
+        gender,
+        blood_type,
+        allergies,
+        chronic_conditions,
+        current_medications,
+        past_surgeries,
+        primary_physician,
+        physician_contact,
+        preferred_pharmacy,
+        insurance_provider,
+        insurance_policy,
+        vaccination_records,
+      }
+    });
+
+    // Create patient or caregiver record based on role
+    if (role === 'patient') {
+      await prisma.patients.create({
+        data: { user_id: user.id }
+      });
+    } else if (role === 'caregiver') {
+      await prisma.caregivers.create({
+        data: { user_id: user.id }
+      });
     }
-  });
 
-  // 👇 ADD THIS BLOCK
-  if (role === 'patient') {
-    await prisma.patients.create({
-      data: { user_id: user.id }
-    });
-  } else if (role === 'caregiver') {
-    await prisma.caregivers.create({
-      data: { user_id: user.id }
-    });
+    res.status(201).json({ id: user.id, email: user.email });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  res.status(201).json({ id: user.id, email: user.email });
-} catch (err) {
-  res.status(500).json({ error: err.message });
-}
 });
 
 
@@ -115,8 +115,8 @@ router.post('/login', [
   res.json({ token });
 });
 
-
-module.exports = function (req, res, next) {
+// Authentication middleware
+const authenticateToken = function (req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
