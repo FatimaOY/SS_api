@@ -91,6 +91,34 @@ router.get('/my-alerts', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch alerts' });
   }
 });
+// Get a single alert by ID
+router.get('/:id', auth, async (req, res) => {
+  const alertId = parseInt(req.params.id);
+  if (isNaN(alertId)) {
+    return res.status(400).json({ error: 'Invalid alert ID' });
+  }
+
+  try {
+    const alert = await prisma.alerts.findUnique({
+      where: { id: alertId },
+      include: {
+        devices: true,
+        patients: {
+          include: { users: true }
+        }
+      }
+    });
+
+    if (!alert) {
+      return res.status(404).json({ error: 'Alert not found' });
+    }
+
+    res.json(alert);
+  } catch (err) {
+    console.error("Error fetching alert:", err);
+    res.status(500).json({ error: 'Failed to fetch alert' });
+  }
+});
 
 // Web-based alert creation
 router.post(
@@ -293,6 +321,49 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error("Error deleting alert:", err);
     res.status(500).json({ error: 'Failed to delete alert' });
+  }
+});
+
+router.get('/for-caregiver', auth, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    // Find patients linked to this caregiver
+    const caregiver = await prisma.caregivers.findUnique({
+      where: { user_id: userId },
+      include: {
+        caregiverpatientlinks: {
+          include: {
+            patients: true
+          }
+        }
+      }
+    });
+
+    if (!caregiver) {
+      return res.status(403).json({ error: 'Not a caregiver' });
+    }
+
+    const patientIds = caregiver.caregiverpatientlinks.map(link => link.patients.id);
+
+    const alerts = await prisma.alerts.findMany({
+      where: {
+        patient_id: { in: patientIds }
+      },
+      include: {
+        patients: {
+          include: { users: true }
+        },
+        devices: true
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    res.json(alerts);
+  } catch (error) {
+    console.error("Error fetching caregiver alerts:", error);
+    res.status(500).json({ error: 'Failed to fetch caregiver alerts' });
   }
 });
 

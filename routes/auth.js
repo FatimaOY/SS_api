@@ -49,40 +49,51 @@ router.post('/register', [
   } = req.body;
 
   const hashed = await bcrypt.hash(password, 10);
-  try {
-    const user = await prisma.users.create({
-      data: {
-        email,
-        password: hashed,
-        role,
-        first_name,
-        last_name,
-        address,
-        phone,
-        emergency_name,
-        emergency_phone,
-        medical_info,
-        date_of_birth: date_of_birth ? new Date(date_of_birth) : null,
-        gender,
-        blood_type,
-        allergies,
-        chronic_conditions,
-        current_medications,
-        past_surgeries,
-        primary_physician,
-        physician_contact,
-        preferred_pharmacy,
-        insurance_provider,
-        insurance_policy,
-        vaccination_records,
-      }
+try {
+  const user = await prisma.users.create({
+    data: {
+      email,
+      password: hashed,
+      role,
+      first_name,
+      last_name,
+      address,
+      phone,
+      emergency_name,
+      emergency_phone,
+      medical_info,
+      date_of_birth: date_of_birth ? new Date(date_of_birth) : null,
+      gender,
+      blood_type,
+      allergies,
+      chronic_conditions,
+      current_medications,
+      past_surgeries,
+      primary_physician,
+      physician_contact,
+      preferred_pharmacy,
+      insurance_provider,
+      insurance_policy,
+      vaccination_records,
+    }
+  });
+
+  // 👇 ADD THIS BLOCK
+  if (role === 'patient') {
+    await prisma.patients.create({
+      data: { user_id: user.id }
     });
-    res.status(201).json({ id: user.id, email: user.email });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } else if (role === 'caregiver') {
+    await prisma.caregivers.create({
+      data: { user_id: user.id }
+    });
   }
+
+  res.status(201).json({ id: user.id, email: user.email });
+} catch (err) {
+  res.status(500).json({ error: err.message });
 }
-);
+});
 
 
 // Login
