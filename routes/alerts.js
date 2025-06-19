@@ -19,8 +19,36 @@ const transporter = nodemailer.createTransport({
 
 // Get alerts for a specific patient
 router.get('/', auth, async (req, res) => {
-  const patientId = parseInt(req.query.patientId);
-  if (!patientId) return res.status(400).json({ error: 'Missing patientId in query' });
+  const patientId = parseInt(req.query.patientId || req.query.patient_id);
+  if (!patientId) {
+    // If no patient ID provided, return all alerts (for caregivers)
+    try {
+      const alerts = await prisma.alerts.findMany({
+        include: { 
+          devices: {
+            include: {
+              patients: {
+                include: {
+                  users: true
+                }
+              }
+            }
+          },
+          patients: {
+            include: {
+              users: true
+            }
+          }
+        },
+        orderBy: { created_at: 'desc' }
+      });
+      res.json(alerts);
+    } catch (err) {
+      console.error("Error fetching all alerts:", err);
+      res.status(500).json({ error: 'Failed to fetch alerts' });
+    }
+    return;
+  }
 
   try {
     const alerts = await prisma.alerts.findMany({
@@ -91,6 +119,66 @@ router.get('/my-alerts', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch alerts' });
   }
 });
+
+// Get alerts for all patients linked to a caregiver
+router.get('/for-caregiver', auth, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    // Find the caregiver record for this user
+    const caregiver = await prisma.caregivers.findFirst({
+      where: { user_id: userId }
+    });
+
+    if (!caregiver) {
+      return res.status(404).json({ error: 'No caregiver record found for this user' });
+    }
+
+    // Get all patients linked to this caregiver
+    const linkedPatients = await prisma.caregiverpatientlinks.findMany({
+      where: { caregiver_id: caregiver.id },
+      include: {
+        patients: true
+      }
+    });
+
+    const patientIds = linkedPatients.map(link => link.patient_id);
+
+    if (patientIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Get alerts for all linked patients
+    const alerts = await prisma.alerts.findMany({
+      where: { 
+        patient_id: { in: patientIds }
+      },
+      include: { 
+        devices: {
+          include: {
+            patients: {
+              include: {
+                users: true
+              }
+            }
+          }
+        },
+        patients: {
+          include: {
+            users: true
+          }
+        }
+      },
+      orderBy: { created_at: 'desc' }
+    });
+    res.json(alerts);
+  } catch (err) {
+    console.error("Error fetching caregiver alerts:", err);
+    res.status(500).json({ error: 'Failed to fetch alerts' });
+  }
+});
+
 // Get a single alert by ID
 router.get('/:id', auth, async (req, res) => {
   const alertId = parseInt(req.params.id);
@@ -321,49 +409,6 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error("Error deleting alert:", err);
     res.status(500).json({ error: 'Failed to delete alert' });
-  }
-});
-
-router.get('/for-caregiver', auth, async (req, res) => {
-  const userId = req.user?.id;
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-  try {
-    // Find patients linked to this caregiver
-    const caregiver = await prisma.caregivers.findUnique({
-      where: { user_id: userId },
-      include: {
-        caregiverpatientlinks: {
-          include: {
-            patients: true
-          }
-        }
-      }
-    });
-
-    if (!caregiver) {
-      return res.status(403).json({ error: 'Not a caregiver' });
-    }
-
-    const patientIds = caregiver.caregiverpatientlinks.map(link => link.patients.id);
-
-    const alerts = await prisma.alerts.findMany({
-      where: {
-        patient_id: { in: patientIds }
-      },
-      include: {
-        patients: {
-          include: { users: true }
-        },
-        devices: true
-      },
-      orderBy: { created_at: 'desc' }
-    });
-
-    res.json(alerts);
-  } catch (error) {
-    console.error("Error fetching caregiver alerts:", error);
-    res.status(500).json({ error: 'Failed to fetch caregiver alerts' });
   }
 });
 

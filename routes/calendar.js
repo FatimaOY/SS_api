@@ -109,6 +109,158 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
+// Get events for caregivers (their own events + their patients' events)
+router.get('/caregiver', auth, async (req, res) => {
+  try {
+    // First check if the user is a caregiver
+    const caregiver = await prisma.caregivers.findFirst({
+      where: { user_id: req.user.id }
+    });
 
+    if (!caregiver) {
+      return res.status(403).json({ error: 'User is not a caregiver' });
+    }
+
+    // Get caregiver's own events
+    const caregiverEvents = await prisma.events.findMany({
+      where: { user_id: req.user.id },
+      include: { 
+        users: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    // Get all patients linked to this caregiver
+    const patientLinks = await prisma.caregiverpatientlinks.findMany({
+      where: { caregiver_id: caregiver.id },
+      include: {
+        patients: {
+          include: {
+            users: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                email: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Get events for all linked patients
+    const patientIds = patientLinks.map(link => link.patients.user_id);
+    const patientEvents = await prisma.events.findMany({
+      where: {
+        user_id: {
+          in: patientIds
+        }
+      },
+      include: {
+        users: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    // Combine and organize events
+    const allEvents = [
+      ...caregiverEvents.map(event => ({
+        ...event,
+        event_owner: 'caregiver',
+        owner_name: `${event.users.first_name} ${event.users.last_name} (You)`
+      })),
+      ...patientEvents.map(event => ({
+        ...event,
+        event_owner: 'patient',
+        owner_name: `${event.users.first_name} ${event.users.last_name} (Patient)`
+      }))
+    ];
+
+    // Sort events by start time
+    allEvents.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+    res.json(allEvents);
+  } catch (err) {
+    console.error("Error fetching caregiver events:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get events for a specific patient (for caregiver view)
+router.get('/patient/:patientId', auth, async (req, res) => {
+  try {
+    const patientId = parseInt(req.params.patientId);
+    
+    // Verify the caregiver has access to this patient
+    const caregiver = await prisma.caregivers.findFirst({
+      where: { user_id: req.user.id }
+    });
+
+    if (!caregiver) {
+      return res.status(403).json({ error: 'User is not a caregiver' });
+    }
+
+    const patientLink = await prisma.caregiverpatientlinks.findFirst({
+      where: {
+        caregiver_id: caregiver.id,
+        patient_id: patientId
+      }
+    });
+
+    if (!patientLink) {
+      return res.status(403).json({ error: 'Access denied to this patient' });
+    }
+
+    // Get the patient's user ID
+    const patient = await prisma.patients.findUnique({
+      where: { id: patientId },
+      include: { users: true }
+    });
+
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    // Get events for this specific patient
+    const events = await prisma.events.findMany({
+      where: { user_id: patient.user_id },
+      include: {
+        users: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    // Add owner information
+    const eventsWithOwner = events.map(event => ({
+      ...event,
+      event_owner: 'patient',
+      owner_name: `${event.users.first_name} ${event.users.last_name} (Patient)`
+    }));
+
+    res.json(eventsWithOwner);
+  } catch (err) {
+    console.error("Error fetching patient events:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;
